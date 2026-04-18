@@ -1,0 +1,1 @@
+the folder was created to explore the data in the  db of the dummy_clients.
