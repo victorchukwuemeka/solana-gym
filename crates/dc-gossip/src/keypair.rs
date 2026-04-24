@@ -1,4 +1,5 @@
 use anyhow::Result;
+use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signature::Signer;
 
@@ -13,7 +14,7 @@ impl NodeKeypair {
         }
     }
 
-    pub fn pubkey(&self) -> String {
-        self.keypair.pubkey().to_string()
+    pub fn pubkey(&self) -> Pubkey {
+        self.keypair.pubkey()
     }
 }

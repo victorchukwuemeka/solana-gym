@@ -11,17 +11,21 @@ pub async fn handler(
     tx: &GossipTx,
 ) -> Result<()> {
     match msg {
-        Protocol::PullResponse { from, value } => {
-            tracing::info!("PullMessage from {}", from);
+        Protocol::PushMessage(pubkey, values) => {
+            tracing::info!("Push from {}", pubkey);
+            // TODO: merge values into crds
         }
-        Protocol::PushMessage { from, value } => {
-            tracing::info!("PushMessage from {}", from);
+        Protocol::PullResponse(pubkey, values) => {
+            tracing::info!("Pull response from {} — {} values", pubkey, values.len());
+            // TODO: merge values into crds
         }
-        Protocol::PingMessage { from, value } => {
-            tracing::info!("PingMessage from {}", from);
+        Protocol::PingMessage(ping) => {
+            tracing::info!("Ping from {}", ping.from);
+            // TODO: send Pong back
         }
-
-        _ => {}
+        _ => {
+            tracing::info!("unknown message from {}", sender);
+        }
     }
     Ok(())
 }

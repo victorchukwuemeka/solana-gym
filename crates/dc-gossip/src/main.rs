@@ -2,6 +2,7 @@ mod crds;
 mod emitter;
 mod handler;
 mod keypair;
+mod ping;
 mod protocol;
 mod transport;
 mod types;
@@ -21,9 +22,12 @@ async fn main() -> Result<(), anyhow::Error> {
     tracing_subscriber::fmt::init();
 
     let node = NodeKeypair::new();
-    let transport = Transport::new("0.0.0.0:8901").await?;
+    let transport = Transport::new("0.0.0.0:8903").await?;
     let mut table = CrdsTable::new();
     let (tx, _rx) = create_channel();
+    let ping = ping::Ping::new(&node.keypair)?;
+    let pin_msg = protocol::Protocol::PingMessage(ping);
+    let ping_bytes = protocol::Protocol::encode_to(&pin_msg)?;
 
     tracing::info!("our node identity: {}", node.pubkey());
     tracing::info!("connecting to devnet: {}", DEVNET_ENTRYPOINT);
@@ -33,9 +37,19 @@ async fn main() -> Result<(), anyhow::Error> {
         .next()
         .ok_or_else(|| anyhow::anyhow!("could not resolve devnet entrypoint"))?;
 
-    let pull_response = protocol::Protocol::PullResponse {
-        from: node.pubkey(),
-        value: vec![],
+    transport.send(&ping_bytes, &entrypoint).await?;
+    tracing::info!("Ping sent to devnet entrypoint");
+
+    let pull_response = protocol::Protocol::PullResponse(node.pubkey(), vec![]);
+    match &pull_response {
+        protocol::Protocol::PullResponse(pk, vals) => {
+            tracing::info!(
+                "Sending PullResponse with pubkey={}, empty={}",
+                pk,
+                vals.is_empty()
+            );
+        }
+        _ => {}
     };
 
     let bytes = pull_response.encode_to()?;
