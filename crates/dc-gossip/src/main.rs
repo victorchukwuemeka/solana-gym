@@ -6,6 +6,7 @@ mod ip_echo;
 mod keypair;
 mod ping;
 mod protocol;
+mod short_vec;
 mod transport;
 mod types;
 

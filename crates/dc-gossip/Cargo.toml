@@ -21,3 +21,5 @@ bitvec = "1.0.1"
 solana-bloom = "3.1.13"
 solana-hash = "4.3.0"
 rand = "0.10"
+solana-version = "3.1.14"
+solana-gossip = { path = "/home/victor/opensource/agave/gossip" }

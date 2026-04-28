@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
-use std::net::SocketAddr;
+use solana_version::Version;
+use std::net::{IpAddr, SocketAddr};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContactInfo {
