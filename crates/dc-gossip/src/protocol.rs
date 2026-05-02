@@ -1,5 +1,6 @@
 use crate::contact_info::ContactInfo;
-use crate::ping::Ping;
+use crate::ping_pong::Ping;
+use crate::ping_pong::Pong;
 use anyhow::Result;
 use bitvec::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -55,13 +56,6 @@ pub enum CrdsData {
     ContactInfo(ContactInfo),           // 11 ← our real one
     RestartLastVotedForkSlots(Vec<u8>), // 12
     RestartHeaviestFork(Vec<u8>),       // 13
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Pong {
-    pub from: Pubkey,
-    pub hash: Hash,
-    pub signature: Signature,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

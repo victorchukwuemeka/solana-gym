@@ -4,7 +4,7 @@ mod emitter;
 mod handler;
 mod ip_echo;
 mod keypair;
-mod ping;
+mod ping_pong;
 mod protocol;
 mod short_vec;
 mod transport;
@@ -14,6 +14,7 @@ use anyhow::Result;
 use contact_info::ContactInfo;
 use crds::CrdsTable;
 //use emitter::create_channel;
+use crate::ping_pong::{Ping, Pong};
 use ip_echo::get_cluster_info;
 use keypair::NodeKeypair;
 use solana_bloom::bloom::Bloom;
@@ -50,11 +51,13 @@ async fn main() -> Result<(), anyhow::Error> {
     //transport.send(&ping_bytes, &entrypoint).await?;
     //tracing::info!("Ping sent to devnet entrypoint");
 
-    let gossip_addr: SocketAddr = "0.0.0.0:8001".parse()?;
-    let info = ContactInfo::new(node.pubkey(), gossip_addr, DEVNET_SHRED_VERSION);
+    //let gossip_addr: SocketAddr = "102.89.22.11:8001".parse()?;
+    let public_ip = reqwest::get("https://api.ipify.org").await?.text().await?;
+    let gossip_addr: SocketAddr = format!("{}:8001", public_ip).parse()?;
+    let info = ContactInfo::new(node.pubkey(), gossip_addr, 0u16);
 
     let caller = protocol::CrdsValue::new_contact_info(info, &node.keypair);
-    let bloom: Bloom<Hash> = Bloom::random(0, 0.1, 1024);
+    let bloom: Bloom<Hash> = Bloom::random(1024, 0.1, 1024);
 
     let filter = protocol::CrdsFilter {
         filter: bloom,
@@ -63,38 +66,45 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     let pull_request = protocol::Protocol::PullRequest(filter, caller);
-    let bytes = pull_request.encode_to()?;
-    transport.send(&bytes, &entrypoint).await?;
+    let pull_bytes = pull_request.encode_to()?;
+    transport.send(&pull_bytes, &entrypoint).await?;
     tracing::info!("PullRequest sent to devnet");
 
     loop {
         match tokio::time::timeout(std::time::Duration::from_secs(5), transport.recv()).await {
             Ok(Ok((bytes, sender))) => {
-                tracing::info!(
-                    "GOT PACKET from {} — {} bytes — first 16: {:?}",
-                    sender,
-                    bytes.len(),
-                    &bytes[..bytes.len().min(16)]
-                );
+                tracing::info!("GOT PACKET from {} — {} bytes ", sender, bytes.len(),);
                 match protocol::Protocol::decode_from(&bytes) {
                     Ok(protocol::Protocol::PingMessage(ping)) => {
                         tracing::info!("Got Ping from {} — sending Pong", sender);
-                        // TODO: send Pong back
+                        tracing::info!("Ping from {} — sending Pong", sender);
+                        let pong = ping_pong::Pong::new(&ping, &node.keypair)?;
+                        let pong_msg = protocol::Protocol::PongMessage(pong);
+                        let pong_bytes = pong_msg.encode_to()?;
+                        transport.send(&pong_bytes, &sender).await?;
+                        tracing::info!("Pong sent to {}", sender);
+                    }
+                    Ok(protocol::Protocol::PullResponse(pubkey, values)) => {
+                        tracing::info!("PullResponse from {} — {} values 🔥", pubkey, values.len());
+                    }
+                    Ok(protocol::Protocol::PushMessage(pubkey, values)) => {
+                        tracing::info!("PushMessage from {} — {} values 🔥", pubkey, values.len());
                     }
                     Ok(other) => {
-                        tracing::info!("Got message: {:?}", other);
+                        tracing::info!("other message: {:?}", other);
                     }
-                    Err(e) => {
-                        tracing::info!(
-                            "Could not decode: {} — raw bytes: {:?}",
-                            e,
-                            &bytes[..bytes.len().min(16)]
-                        );
+                    Err(_) => {
+                        // can't decode yet — print raw bytes
+                        tracing::info!("raw bytes: {:?}", &bytes[..bytes.len().min(16)]);
                     }
                 }
             }
             Ok(Err(e)) => tracing::error!("recv error: {}", e),
-            Err(_) => tracing::info!("no packets in 5s..."),
+            Err(_) => {
+                // every 1s resend PullRequest
+                transport.send(&pull_bytes, &entrypoint).await?;
+                tracing::info!("PullRequest resent");
+            }
         }
     }
 }
